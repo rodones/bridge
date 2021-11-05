@@ -1,12 +1,13 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor, NotFoundException } from "@nestjs/common";
 import { Observable, throwError } from "rxjs";
-import { catchError } from "rxjs/operators";
+import { catchError, map } from "rxjs/operators";
 import { NotFoundError } from "@mikro-orm/core";
 
 @Injectable()
 export class ExceptionInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const isProduction = process.env.NODE_ENV === "production";
+    const isLoginRoute = context.getHandler().name === "login";
 
     return next.handle().pipe(
       catchError((error) => {
@@ -16,6 +17,7 @@ export class ExceptionInterceptor implements NestInterceptor {
           return throwError(() => error);
         }
       }),
+      map((data) => (isLoginRoute ? data : { data })),
     );
   }
 }

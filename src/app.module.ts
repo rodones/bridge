@@ -6,7 +6,8 @@ import { AuthModule } from "./auth/auth.module";
 import { BridgeModule } from "./bridge/bridge.module";
 import { NodeModule } from "./node/node.module";
 import { ExceptionInterceptor } from "./app.interceptor";
-import { APP_INTERCEPTOR } from "@nestjs/core";
+import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
+import { AllExceptionsFilter } from "./app.filter";
 
 @Module({
   imports: [
@@ -25,6 +26,10 @@ import { APP_INTERCEPTOR } from "@nestjs/core";
     {
       provide: APP_INTERCEPTOR,
       useClass: ExceptionInterceptor,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
     },
   ],
 })
