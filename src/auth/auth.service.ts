@@ -20,7 +20,7 @@ export class AuthService {
 
     const passwordsMatch = await argon2.verify(user.password, password);
     if (!passwordsMatch) {
-      throw new NotFoundException("Username found but passwords are not matching.");
+      throw new NotFoundException("Invalid username or password.");
     }
 
     return UserDetails.from(user);
