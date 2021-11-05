@@ -1,5 +1,6 @@
 import { IsEmail, IsNotEmpty } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
+import { User } from "src/entities";
 
 export type JwtPayload = {
   sub: number;
@@ -11,6 +12,15 @@ export class UserDetails {
 
   @ApiProperty()
   username: string;
+
+  constructor(id: number, username: string) {
+    this.id = id;
+    this.username = username;
+  }
+
+  static from(model: User) {
+    return new UserDetails(model.id, model.username);
+  }
 }
 
 export class GetProfileResponse extends UserDetails {}

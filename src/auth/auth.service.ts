@@ -4,6 +4,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import argon2 from "argon2";
 import { User } from "src/entities";
+import { UserDetails } from "./auth.dto";
 
 @Injectable()
 export class AuthService {
@@ -22,9 +23,7 @@ export class AuthService {
       throw new NotFoundException("Username found but passwords are not matching.");
     }
 
-    user.password = null;
-
-    return user;
+    return UserDetails.from(user);
   }
 
   async getUserById(id: number): Promise<Omit<User, "password">> {
