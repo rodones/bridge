@@ -9,6 +9,7 @@ import {
   OnGatewayConnection,
 } from "@nestjs/websockets";
 import { IncomingMessage } from "http";
+import fetch from "cross-fetch";
 import { Observable, of } from "rxjs";
 import { Server, KeyAwareWebSocket } from "ws";
 import { Message } from "./bridge.dto";
@@ -38,12 +39,8 @@ export class DaemonGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
       this.logger.log(`The node '${node.name}' connected from the address '${ip}'.`);
 
-      const sendMessage = () => {
-        client.send(JSON.stringify(new Message("exec", { cmd: "system/ram" })));
-        // setTimeout(sendMessage, 1000);
-      };
-
-      sendMessage();
+      client._rodonesKey = key;
+      this.clients.set(key, client);
     } catch (e) {
       if (e instanceof NotFoundError) {
         this.logger.log(`The daemon from '${ip}' provided invalid key.`);
@@ -56,10 +53,6 @@ export class DaemonGateway implements OnGatewayInit, OnGatewayConnection, OnGate
       }
       client.close();
     }
-
-    client._rodonesKey = key;
-
-    this.clients.set(key, client);
   }
 
   async handleDisconnect(client: KeyAwareWebSocket) {
@@ -73,25 +66,60 @@ export class DaemonGateway implements OnGatewayInit, OnGatewayConnection, OnGate
   }
 
   @SubscribeMessage("exec")
-  onExec(
-    client: KeyAwareWebSocket,
-    cmd: string,
-    args: Record<string, any>,
-    daemon_id: string,
-  ): Observable<WsResponse<any>> {
-    console.log(client);
+  async onExec(client: KeyAwareWebSocket, data: Record<string, any>) {
+    await this.waitRegister(client);
 
-    return of({
-      event: "result",
-      data: {
-        command: { cmd, args, daemon_id },
-        result: 5,
-      },
-    });
+    console.log(data);
   }
 
   @SubscribeMessage("result")
-  onResult(client: KeyAwareWebSocket, cmd: string, args: Record<string, any>) {
-    console.log(cmd, args);
+  async onResult(client: KeyAwareWebSocket, data: Record<string, any>) {
+    await this.waitRegister(client);
+
+    console.log(data);
+  }
+
+  private waitRegister(client: KeyAwareWebSocket) {
+    return new Promise((resolve, reject) => {
+      const loop = (retryNo = 0) => {
+        if (retryNo === 10) reject("timeout");
+
+        if ("_rodonesKey" in client) {
+          return resolve(client);
+        }
+
+        setTimeout(() => loop(retryNo + 1), 100);
+      };
+
+      loop();
+    });
+  }
+
+  @SubscribeMessage("critical_resource_usage")
+  async onCriticalResourceUsage(client: KeyAwareWebSocket, data: Record<string, any>) {
+    await this.waitRegister(client);
+
+    const node = await this.bridgeService.findNode(client._rodonesKey);
+
+    const result = await fetch(`https://api.telegram.org/bot${process.env.RODONES_TELEGRAM_API_KEY}/sendMessage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chat_id: process.env.RODONES_TELEGRAM_CHAT_ID,
+        parse_mode: "html",
+        text: `<b>${node.name}</b> - ⚠️ High ${data.name} consumption!
+
+- total: ${(data.stats.total / 1073741824).toFixed(2)}
+- used: ${(data.stats.used / 1073741824).toFixed(2)}
+- free: ${(data.stats.free / 1073741824).toFixed(2)}
+- percent: ${data.stats.percent}`,
+      }),
+    }).then((res) => res.json());
+
+    if (!result.ok) {
+      return this.logger.error(result);
+    }
   }
 }
