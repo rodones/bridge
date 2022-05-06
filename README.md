@@ -1,6 +1,6 @@
 # rodones-bridge
 
-A bridge that connects all nodes!
+A bridge that connects all nodes! Discontinued before fully implemented because of lack of need.
 
 ## Installation
 
